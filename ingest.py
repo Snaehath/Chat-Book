@@ -13,14 +13,22 @@ def create_vector_db():
                              loader_cls=PyPDFLoader)
 
     documents = loader.load()
+
     text_splitter = RecursiveCharacterTextSplitter(chunk_size=500,
                                                    chunk_overlap=50)
     texts = text_splitter.split_documents(documents)
+    # print("text--------------",texts)
 
     embeddings = HuggingFaceEmbeddings(model_name='sentence-transformers/all-MiniLM-L6-v2',
                                        model_kwargs={'device': 'cpu'})
 
+    # print("embeddings-------------",dir(embeddings))
     db = FAISS.from_documents(texts, embeddings)
+    # print("Helpful statements------------=",dir(db.index))
+    # print("Another one--------------------",dir(db))
+    # vector_Emb = db.index.reconstruct_n()
+    # print(len(vector_Emb),vector_Emb)
+    # print("db------ SEE HERE --------", db)
     db.save_local(DB_FAISS_PATH)
 
 if __name__ == "__main__":

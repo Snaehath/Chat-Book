@@ -9,7 +9,7 @@ import chainlit as cl
 DB_FAISS_PATH = 'vectorstore/db_faiss'
 
 custom_prompt_template = """Use the following pieces of information to answer the user's question.
-If you don't know the answer, just say that you don't know, don't try to make up an answer.
+If you don't know the answer, just say," answer is not available in the context", don't provide or try to make up an answer.
 
 Context: {context}
 Question: {question}
@@ -42,8 +42,9 @@ def load_llm():
     llm = CTransformers(
         model = "TheBloke/Llama-2-7B-Chat-GGML",
         model_type="llama",
-        max_new_tokens = 512,
-        temperature = 0.5
+        max_new_tokens = 600,
+        temperature = 0.5,
+        config = {'context_length':2048}
     )
     return llm
 
@@ -70,7 +71,7 @@ async def start():
     chain = qa_bot()
     msg = cl.Message(content="Starting the bot...")
     await msg.send()
-    msg.content = "Hi, Welcome to Educational Bot. What is your query?"
+    msg.content = "Hi, Welcome to Textbook Companion. What is your query?"
     await msg.update()
 
     cl.user_session.set("chain", chain)
@@ -82,14 +83,26 @@ async def main(message: cl.Message):
         stream_final_answer=True, answer_prefix_tokens=["FINAL", "ANSWER"]
     )
     cb.answer_reached = True
-    res = await chain.acall(message.content, callbacks=[cb])
+    res =  await chain.acall(message.content, callbacks=[cb])
     answer = res["result"]
     sources = res["source_documents"]
 
-    # if sources:
-    #     answer += f"\nSources:" + str(sources)
-    # else:
-    #     answer += "\nNo sources found"
+    await cl.Message(content=pretty_print(sources)).send()
 
-    await cl.Message(content=sources).send()
+def pretty_print(sources):
+    book_and_pages = dict()
+    
+    for doc in sources:
+        metadata = list(doc.metadata.items())
+        book_name = metadata[0][-1].replace("data\\", "").replace(".pdf", "")
+        page = metadata[-1][-1]
+        pages = book_and_pages.get(book_name, [])
+        pages.append(page)
+        book_and_pages[book_name] = sorted(list(set(pages)))
+    
+    output = "Response referred from:\n"
 
+    for (book, pages) in book_and_pages.items():
+        output += "Page(s) " + ', '.join(map(str, pages)) + ' from ' + book + '\n'
+
+    return output
